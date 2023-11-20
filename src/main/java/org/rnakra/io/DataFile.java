@@ -1,12 +1,16 @@
 package org.rnakra.io;
 import org.rnakra.core.IndexLocation;
 
+import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Arrays;
 import java.util.Date;
 import java.time.Instant;
 
+// TODO: Maintain instances of ReadFile and WriteFile or some optimization around em
 public class DataFile {
 
     public class Pair {
@@ -18,12 +22,29 @@ public class DataFile {
         }
     }
 
+    public class Entry {
+        public String key;
+        public String value;
+        public long offset;
+        Entry(String key, String value, long offset) {
+            this.key = key;
+            this.value = value;
+            this.offset = offset;
+        }
+    }
+
     private final String defaultDirectory = "data"; // Default directory
     private File file;
     private RandomAccessFile storeFile;
 
     public DataFile() throws FileNotFoundException {
         this.file = new File(defaultDirectory, Instant.now().toEpochMilli() + ".db"); // Default file path
+        createDirectoryIfNotExists(defaultDirectory);
+        this.storeFile = new RandomAccessFile(this.file, "rw");
+    }
+
+    public DataFile(String fileName) throws FileNotFoundException {
+        this.file = new File(defaultDirectory, fileName); // Default file path
         createDirectoryIfNotExists(defaultDirectory);
         this.storeFile = new RandomAccessFile(this.file, "rw");
     }
@@ -77,6 +98,30 @@ public class DataFile {
         dataInputStream.read(valueBytes);
 
         return new String(valueBytes, StandardCharsets.UTF_8);
+    }
+
+
+    public synchronized List<Entry> readEntries(File file) throws IOException {
+        RandomAccessFile toReadFile = new RandomAccessFile(file, "r");
+        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(toReadFile.getFD()));
+        List<Entry> entries = new ArrayList<>();
+        long offset = 0;
+        while(true) {
+            int keySize = dataInputStream.readInt();
+            int valueSize = dataInputStream.readInt();
+
+            byte[] keyBytes = new byte[keySize];
+            byte[] valueBytes = new byte[valueSize];
+
+            dataInputStream.read(keyBytes);
+            dataInputStream.read(valueBytes);
+            entries.add(new Entry(new String(keyBytes, StandardCharsets.UTF_8), new String(valueBytes, StandardCharsets.UTF_8), offset));
+            offset = offset + 8 + keySize + valueSize;
+            if(offset >= toReadFile.length()) {
+                break;
+            }
+        }
+        return entries;
     }
 
     public synchronized String readKey(IndexLocation indexLocation) throws IOException {

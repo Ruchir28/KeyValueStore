@@ -1,5 +1,12 @@
 package org.rnakra.merger;
 
+import org.rnakra.core.IndexLocation;
+import org.rnakra.io.DataFile;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -24,7 +31,49 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 
 public class CompactAndMerge {
-    public static void merge(ConcurrentHashMap<String, Long> memoryIndex, String file1, String file2) {
+    public static void merge(ConcurrentHashMap<String, IndexLocation> memoryIndex, String file1Path, String file2Path, DataFile dataFile) {
+        try {
+            File file1 = new File(file1Path);
+            File file2 = new File(file2Path);
+            List<DataFile.Entry> entries1 = dataFile.readEntries(file1);
+            List<DataFile.Entry> entries2 = dataFile.readEntries(file2);
+            File fileToKeepName = file1.lastModified() > file2.lastModified() ? file1 : file2;
+            File fileToDeleteName = file1.lastModified() > file2.lastModified() ? file2 : file1;
+            // write to a temporary file first , which will be renamed afterward, to avoid data loss in case process crashes
+            ConcurrentHashMap<String, IndexLocation> tempMemoryIndex = new ConcurrentHashMap<String, IndexLocation>();
+            File tempFile = new File(fileToKeepName.getAbsolutePath() + ".tmp");
+            DataFile tempDataFile = new DataFile(tempFile.getAbsolutePath());
+            for(DataFile.Entry entry: entries1) {
+                if(memoryIndex.get(entry.key).getFileName().equals(fileToKeepName.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
+                    tempDataFile.appendEntry(entry.key, entry.value);
+                }
+                tempDataFile.appendEntry(entry.key, entry.value);
+                tempMemoryIndex.put(entry.key, new IndexLocation(tempFile.getName(), entry.offset));
+            }
+            for(DataFile.Entry entry: entries2) {
+                if(memoryIndex.get(entry.key).getFileName().equals(fileToKeepName.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
+                    tempDataFile.appendEntry(entry.key, entry.value);
+                }
+                tempDataFile.appendEntry(entry.key, entry.value);
+                tempMemoryIndex.put(entry.key, new IndexLocation(tempFile.getName(), entry.offset));
+            }
 
+            // rename the temporary file to the file to keep
+            tempFile.renameTo(fileToKeepName);
+            // delete the file to delete
+            fileToDeleteName.delete();
+            // update the main index
+            for(Map.Entry<String,IndexLocation> entry: tempMemoryIndex.entrySet()) {
+                // timestamp check
+                if(memoryIndex.get(entry.getKey()).getFileName().compareTo(entry.getValue().getFileName()) <= 0) {
+                    memoryIndex.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+
+        } catch (IOException e) {
+            System.out.println("CompactAndMerge Exception: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
     }
 }
