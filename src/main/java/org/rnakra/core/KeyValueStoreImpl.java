@@ -2,6 +2,7 @@ package org.rnakra.core;
 
 import org.rnakra.io.DataFile;
 import org.rnakra.io.DataFile.Pair;
+import org.rnakra.merger.CompactAndMerge;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -53,4 +54,9 @@ public class KeyValueStoreImpl implements KeyValueStore {
         }
         return dataFile.readEntry(location);
     }
+
+    public void compactAndMerge(String file1Path, String file2Path) {
+        CompactAndMerge.merge(memoryIndex, file1Path, file2Path, dataFile);
+    }
 }
+//saalsmlasmalsmdlasmdlasmdlkasmdlkasmlkdmaldmalskmdlasmlaksmlkasmlkamclkmsclkamlckamlcmalkmlkasmclkamcladmclasllaksmalcmlamclamclakmclksamclkmalsklasnlcnalcnaknsclaskncalsncalkscnalcnalsnc

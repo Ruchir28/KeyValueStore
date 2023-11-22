@@ -45,7 +45,6 @@ public class DataFile {
 
     public DataFile(String fileName) throws FileNotFoundException {
         this.file = new File(defaultDirectory, fileName); // Default file path
-        createDirectoryIfNotExists(defaultDirectory);
         this.storeFile = new RandomAccessFile(this.file, "rw");
     }
 
@@ -82,6 +81,27 @@ public class DataFile {
         return indexLocation;
     }
 
+    public synchronized IndexLocation appendEntryWhileMerging(String key, String value) throws IOException {
+        storeFile.seek(storeFile.length()); // Move to the end of the file
+
+        byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
+        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+
+        dataOutputStream.writeInt(keyBytes.length); // Key size
+        dataOutputStream.writeInt(valueBytes.length); // Value size
+        dataOutputStream.write(keyBytes); // Key data
+        dataOutputStream.write(valueBytes); // Value data
+
+        byte[] entryBytes = outputStream.toByteArray();
+        storeFile.write(entryBytes); // Write the whole entry
+
+        long offset =  storeFile.length() - entryBytes.length; // Return the start offset of this entry
+        return new IndexLocation(this.file.getName(), offset);
+    }
+
     public synchronized String readEntry(IndexLocation indexLocation) throws IOException {
         RandomAccessFile file = new RandomAccessFile(new File(defaultDirectory, indexLocation.getFileName()), "r");
         file.seek(indexLocation.getOffset()); // Move to the start of the entry
@@ -105,6 +125,9 @@ public class DataFile {
         RandomAccessFile toReadFile = new RandomAccessFile(file, "r");
         DataInputStream dataInputStream = new DataInputStream(new FileInputStream(toReadFile.getFD()));
         List<Entry> entries = new ArrayList<>();
+        if(file.length() == 0) {
+            return entries;
+        }
         long offset = 0;
         while(true) {
             int keySize = dataInputStream.readInt();

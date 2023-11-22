@@ -37,25 +37,24 @@ public class CompactAndMerge {
             File file2 = new File(file2Path);
             List<DataFile.Entry> entries1 = dataFile.readEntries(file1);
             List<DataFile.Entry> entries2 = dataFile.readEntries(file2);
-            File fileToKeepName = file1.lastModified() > file2.lastModified() ? file1 : file2;
-            File fileToDeleteName = file1.lastModified() > file2.lastModified() ? file2 : file1;
+            File fileToKeepName = file1Path.compareTo(file2Path) > 0 ? file1 : file2;
+            File fileToDeleteName = file1Path.compareTo(file2Path) > 0 ? file2 : file1;
             // write to a temporary file first , which will be renamed afterward, to avoid data loss in case process crashes
             ConcurrentHashMap<String, IndexLocation> tempMemoryIndex = new ConcurrentHashMap<String, IndexLocation>();
             File tempFile = new File(fileToKeepName.getAbsolutePath() + ".tmp");
-            DataFile tempDataFile = new DataFile(tempFile.getAbsolutePath());
+            tempFile.createNewFile();
+            DataFile tempDataFile = new DataFile(tempFile.getName());
             for(DataFile.Entry entry: entries1) {
-                if(memoryIndex.get(entry.key).getFileName().equals(fileToKeepName.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
-                    tempDataFile.appendEntry(entry.key, entry.value);
+                if(memoryIndex.get(entry.key).getFileName().equals(file1.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
+                    IndexLocation indexLocation = tempDataFile.appendEntryWhileMerging(entry.key, entry.value);
+                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getName(), indexLocation.getOffset()));
                 }
-                tempDataFile.appendEntry(entry.key, entry.value);
-                tempMemoryIndex.put(entry.key, new IndexLocation(tempFile.getName(), entry.offset));
             }
             for(DataFile.Entry entry: entries2) {
-                if(memoryIndex.get(entry.key).getFileName().equals(fileToKeepName.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
-                    tempDataFile.appendEntry(entry.key, entry.value);
+                if(memoryIndex.get(entry.key).getFileName().equals(file2.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
+                    IndexLocation indexLocation = tempDataFile.appendEntryWhileMerging(entry.key, entry.value);
+                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getName(), indexLocation.getOffset()));
                 }
-                tempDataFile.appendEntry(entry.key, entry.value);
-                tempMemoryIndex.put(entry.key, new IndexLocation(tempFile.getName(), entry.offset));
             }
 
             // rename the temporary file to the file to keep
@@ -66,6 +65,7 @@ public class CompactAndMerge {
             for(Map.Entry<String,IndexLocation> entry: tempMemoryIndex.entrySet()) {
                 // timestamp check
                 if(memoryIndex.get(entry.getKey()).getFileName().compareTo(entry.getValue().getFileName()) <= 0) {
+                    System.out.println("Updating index for key: " + entry.getKey() + " to file: " + entry.getValue().getFileName());
                     memoryIndex.put(entry.getKey(), entry.getValue());
                 }
             }
