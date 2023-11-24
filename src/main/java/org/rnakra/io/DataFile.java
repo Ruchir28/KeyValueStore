@@ -1,5 +1,6 @@
 package org.rnakra.io;
 import org.rnakra.core.IndexLocation;
+import org.rnakra.listener.DataFileSizeListener;
 
 import java.awt.*;
 import java.io.*;
@@ -13,7 +14,7 @@ import java.time.Instant;
 // TODO: Maintain instances of ReadFile and WriteFile or some optimization around em
 public class DataFile {
 
-    public class Pair {
+    public static class Pair {
         public String key;
         public Long offset;
         Pair(String key, Long offset) {
@@ -22,7 +23,7 @@ public class DataFile {
         }
     }
 
-    public class Entry {
+    public static class Entry {
         public String key;
         public String value;
         public long offset;
@@ -33,19 +34,35 @@ public class DataFile {
         }
     }
 
-    private final String defaultDirectory = "data"; // Default directory
     private File file;
     private RandomAccessFile storeFile;
 
-    public DataFile() throws FileNotFoundException {
-        this.file = new File(defaultDirectory, Instant.now().toEpochMilli() + ".db"); // Default file path
-        createDirectoryIfNotExists(defaultDirectory);
-        this.storeFile = new RandomAccessFile(this.file, "rw");
-    }
+    private List<DataFileSizeListener> dataFileSizeListeners;
 
     public DataFile(String fileName) throws FileNotFoundException {
-        this.file = new File(defaultDirectory, fileName); // Default file path
+        this.file = new File(fileName); // Default file path
         this.storeFile = new RandomAccessFile(this.file, "rw");
+        this.dataFileSizeListeners = new ArrayList<>();
+    }
+
+    public DataFile(File file) throws FileNotFoundException {
+        this.file = file;
+        this.storeFile = new RandomAccessFile(this.file,"rw");
+        this.dataFileSizeListeners = new ArrayList<>();
+    }
+
+    public void addDataFileSizeListener(DataFileSizeListener dataFileSizeListener) {
+        this.dataFileSizeListeners.add(dataFileSizeListener);
+    }
+
+    public void removeDataFileSizeListener(DataFileSizeListener dataFileSizeListener) {
+        this.dataFileSizeListeners.remove(dataFileSizeListener);
+    }
+
+    public void notifyDataFileSizeListeners() {
+        for(DataFileSizeListener dataFileSizeListener: this.dataFileSizeListeners) {
+            dataFileSizeListener.onFileSizeExceeded(this);
+        }
     }
 
     public String getFileName() {
@@ -72,10 +89,10 @@ public class DataFile {
 
         long offset =  storeFile.length() - entryBytes.length; // Return the start offset of this entry
         IndexLocation indexLocation = new IndexLocation(this.file.getName(), offset);
+
+        // if file size exceeds the threshold fire the event
         if(storeFile.length() > 100) {
-            this.file = new File(defaultDirectory, Instant.now().toEpochMilli() + ".db"); // Default file path
-            createDirectoryIfNotExists(defaultDirectory);
-            this.storeFile = new RandomAccessFile(this.file, "rw");
+            notifyDataFileSizeListeners();
         }
 
         return indexLocation;
@@ -103,10 +120,9 @@ public class DataFile {
     }
 
     public synchronized String readEntry(IndexLocation indexLocation) throws IOException {
-        RandomAccessFile file = new RandomAccessFile(new File(defaultDirectory, indexLocation.getFileName()), "r");
-        file.seek(indexLocation.getOffset()); // Move to the start of the entry
+        storeFile.seek(indexLocation.getOffset()); // Move to the start of the entry
 
-        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(file.getFD()));
+        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(storeFile.getFD()));
 
         int keySize = dataInputStream.readInt();
         int valueSize = dataInputStream.readInt();
@@ -121,9 +137,9 @@ public class DataFile {
     }
 
 
-    public synchronized List<Entry> readEntries(File file) throws IOException {
-        RandomAccessFile toReadFile = new RandomAccessFile(file, "r");
-        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(toReadFile.getFD()));
+    public synchronized List<Entry> readEntries() throws IOException {
+        storeFile.seek(0); // Move to the start of the entry
+        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(storeFile.getFD()));
         List<Entry> entries = new ArrayList<>();
         if(file.length() == 0) {
             return entries;
@@ -140,7 +156,7 @@ public class DataFile {
             dataInputStream.read(valueBytes);
             entries.add(new Entry(new String(keyBytes, StandardCharsets.UTF_8), new String(valueBytes, StandardCharsets.UTF_8), offset));
             offset = offset + 8 + keySize + valueSize;
-            if(offset >= toReadFile.length()) {
+            if(offset >= storeFile.length()) {
                 break;
             }
         }
@@ -148,10 +164,9 @@ public class DataFile {
     }
 
     public synchronized String readKey(IndexLocation indexLocation) throws IOException {
-        RandomAccessFile file = new RandomAccessFile(new File(defaultDirectory, indexLocation.getFileName()), "r");
-        file.seek(indexLocation.getOffset()); // Move to the start of the entry
+        storeFile.seek(indexLocation.getOffset()); // Move to the start of the entry
 
-        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(file.getFD()));
+        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(storeFile.getFD()));
 
         int keySize = dataInputStream.readInt();
         int valueSize = dataInputStream.readInt();
@@ -163,33 +178,6 @@ public class DataFile {
         dataInputStream.read(valueBytes);
 
         return new String(keyBytes, StandardCharsets.UTF_8);
-    }
-
-    public synchronized Pair readKeyAndNextOffset(File file,long offSet) throws IOException {
-        RandomAccessFile toReadFile = new RandomAccessFile(file, "r");
-        if(offSet >= toReadFile.length()) {
-            return null;
-        }
-        toReadFile.seek(offSet); // Move to the start of the entry
-
-        DataInputStream dataInputStream = new DataInputStream(new FileInputStream(toReadFile.getFD()));
-
-        int keySize = dataInputStream.readInt();
-        int valueSize = dataInputStream.readInt();
-
-        byte[] keyBytes = new byte[keySize];
-        byte[] valueBytes = new byte[valueSize];
-
-        dataInputStream.read(keyBytes);
-        dataInputStream.read(valueBytes);
-
-        return new Pair(new String(keyBytes, StandardCharsets.UTF_8), offSet + 8 + keySize + valueSize);
-    }
-
-    public File[] getFiles() {
-        File folder = new File(defaultDirectory);
-        File[] listOfFiles = folder.listFiles();
-        return Arrays.stream(listOfFiles).filter(File::isFile).toArray(File[]::new);
     }
 
     private void createDirectoryIfNotExists(String directoryPath) {

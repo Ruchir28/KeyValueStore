@@ -7,42 +7,38 @@ import org.rnakra.merger.CompactAndMerge;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class KeyValueStoreImpl implements KeyValueStore {
-    private final DataFile dataFile;
+    private final DataFilesManager dataFileManager;
     // In memory index to keep track of the location of the key in the data file.
     private final ConcurrentHashMap<String, IndexLocation> memoryIndex;
 
     public KeyValueStoreImpl() throws FileNotFoundException {
-        this.dataFile = new DataFile();
+        this.dataFileManager = new DataFilesManager();
         this.memoryIndex = new ConcurrentHashMap<String, IndexLocation>();
         loadIndexes();
     }
 
     public void put(String key, String value) throws IOException {
         System.out.println("Putting key: " + key + " value: " + value);
-        IndexLocation location = dataFile.appendEntry(key, value);
+        IndexLocation location = dataFileManager.getCurrentDataFile().appendEntry(key, value);
         memoryIndex.put(key, location);
 
     }
 
     private void loadIndexes() {
         try {
-            File[] files = dataFile.getFiles();
-            for(File file: files) {
-                long offset = 0;
-                while(true) {
-                    Pair pair = dataFile.readKeyAndNextOffset(file,offset);
-                    if(pair == null || pair.key == null || pair.offset == null) {
-                        break;
-                    }
-                    memoryIndex.put(pair.key, new IndexLocation(file.getName(), offset));
-                    offset = pair.offset;
+            List<DataFile> files = dataFileManager.getDataFiles();
+            for(DataFile file: files) {
+                List<DataFile.Entry> entries = file.readEntries();
+                for(DataFile.Entry entry: entries) {
+                    memoryIndex.put(entry.key, new IndexLocation(file.getFileName(), entry.offset));
                 }
             }
-        } catch (Exception e) {
-            System.out.println("Exception: " + e.getMessage());
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
         }
     }
 
@@ -52,11 +48,12 @@ public class KeyValueStoreImpl implements KeyValueStore {
         if (location == null) {
             return null;
         }
+        DataFile dataFile = dataFileManager.getDataFile(location.getFileName());
         return dataFile.readEntry(location);
     }
 
     public void compactAndMerge(String file1Path, String file2Path) {
-        CompactAndMerge.merge(memoryIndex, file1Path, file2Path, dataFile);
+//        CompactAndMerge.merge(memoryIndex, file1Path, file2Path, da);
     }
 }
 //saalsmlasmalsmdlasmdlasmdlkasmdlkasmlkdmaldmalskmdlasmlaksmlkasmlkamclkmsclkamlckamlcmalkmlkasmclkamcladmclasllaksmalcmlamclamclakmclksamclkmalsklasnlcnalcnaknsclaskncalsncalkscnalcnalsnc
