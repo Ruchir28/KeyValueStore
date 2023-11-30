@@ -5,6 +5,7 @@ import org.rnakra.listener.DataFileSizeListener;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,7 +23,7 @@ public class DataFilesManager implements DataFileSizeListener {
     public DataFilesManager() throws FileNotFoundException {
         try {
             File directory = new File(defaultDirectory);
-            if(directory.exists() && directory.isDirectory()) {
+            if(directory.exists() && directory.isDirectory() && directory.listFiles().length > 0) {
                 List<File> files = Arrays.stream(directory.listFiles()).filter(File::isFile).filter(file -> file.getName().endsWith(".db")).collect(Collectors.toList());
                 this.dataFiles = files.stream().map(file -> {
                     try {
@@ -32,14 +33,15 @@ public class DataFilesManager implements DataFileSizeListener {
                     }
                     return null;
                 }).filter(Objects::nonNull).collect(Collectors.toList());
-                this.currentDataFile = new DataFile((files.get(files.size() - 1)));
-            } else {
-                this.dataFiles = new ArrayList<>();
+            }
+            if(this.dataFiles == null || this.dataFiles.isEmpty()) {
                 File file = new File(defaultDirectory, Instant.now().toEpochMilli() + ".db");
+                file.createNewFile();
                 DataFile dataFile = new DataFile(file);
                 this.currentDataFile = dataFile;
                 this.dataFiles.add(dataFile);
             }
+            this.currentDataFile = this.dataFiles.get(this.dataFiles.size() - 1);
             // adding the listener
             this.currentDataFile.addDataFileSizeListener(this);
         } catch (Exception e) {
@@ -70,6 +72,15 @@ public class DataFilesManager implements DataFileSizeListener {
 
     public List<DataFile> getDataFiles() {
         return dataFiles;
+    }
+
+    public void updateDataFile(String oldDataFileName, String newDataFileName) throws IOException {
+        for(int i = 0; i < this.dataFiles.size(); i++) {
+            if(this.dataFiles.get(i).getFileName().equals(oldDataFileName)) {
+                this.dataFiles.get(i).updateFile(newDataFileName);
+                break;
+            }
+        }
     }
 
     public DataFile getDataFile(String fileName) {

@@ -2,14 +2,10 @@ package org.rnakra.io;
 import org.rnakra.core.IndexLocation;
 import org.rnakra.listener.DataFileSizeListener;
 
-import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Arrays;
-import java.util.Date;
-import java.time.Instant;
 
 // TODO: Maintain instances of ReadFile and WriteFile or some optimization around em
 public class DataFile {
@@ -49,6 +45,10 @@ public class DataFile {
         this.file = file;
         this.storeFile = new RandomAccessFile(this.file,"rw");
         this.dataFileSizeListeners = new ArrayList<>();
+    }
+
+    public void refresh() throws FileNotFoundException {
+        this.storeFile = new RandomAccessFile(this.file,"rw");
     }
 
     public void addDataFileSizeListener(DataFileSizeListener dataFileSizeListener) {
@@ -98,6 +98,19 @@ public class DataFile {
         return indexLocation;
     }
 
+
+    public synchronized boolean deleteFile() throws IOException {
+        return this.file.delete();
+    }
+
+    public synchronized boolean renameFile(String newName) throws IOException {
+        return this.file.renameTo(new File(newName));
+    }
+
+    public File getFile() {
+        return this.file;
+    }
+
     public synchronized IndexLocation appendEntryWhileMerging(String key, String value) throws IOException {
         storeFile.seek(storeFile.length()); // Move to the end of the file
 
@@ -117,6 +130,11 @@ public class DataFile {
 
         long offset =  storeFile.length() - entryBytes.length; // Return the start offset of this entry
         return new IndexLocation(this.file.getName(), offset);
+    }
+
+    public synchronized void updateFile(String newFileName) throws IOException {
+        this.file = new File(newFileName);
+        this.storeFile = new RandomAccessFile(this.file,"rw");
     }
 
     public synchronized String readEntry(IndexLocation indexLocation) throws IOException {

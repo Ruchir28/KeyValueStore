@@ -52,8 +52,10 @@ public class KeyValueStoreImpl implements KeyValueStore {
         return dataFile.readEntry(location);
     }
 
-    public void compactAndMerge(String file1Path, String file2Path) {
-//        CompactAndMerge.merge(memoryIndex, file1Path, file2Path, da);
+    public void compactAndMerge(String file1Name, String file2Name) {
+        DataFile dataFile1 = dataFileManager.getDataFile(file1Name);
+        DataFile dataFile2 = dataFileManager.getDataFile(file2Name);
+        CompactAndMerge.merge(memoryIndex, dataFile1, dataFile2,dataFileManager);
     }
 }
 //saalsmlasmalsmdlasmdlasmdlkasmdlkasmlkdmaldmalskmdlasmlaksmlkasmlkamclkmsclkamlckamlcmalkmlkasmclkamcladmclasllaksmalcmlamclamclakmclksamclkmalsklasnlcnalcnaknsclaskncalsncalkscnalcnalsnc
