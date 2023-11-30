@@ -1,5 +1,6 @@
 package org.rnakra.merger;
 
+import org.rnakra.core.DataFilesManager;
 import org.rnakra.core.IndexLocation;
 import org.rnakra.io.DataFile;
 
@@ -31,36 +32,30 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 
 public class CompactAndMerge {
-    public static void merge(ConcurrentHashMap<String, IndexLocation> memoryIndex, String file1Path, String file2Path, DataFile dataFile) {
+    public static synchronized void merge(ConcurrentHashMap<String, IndexLocation> memoryIndex, DataFile dataFile1, DataFile dataFile2, DataFilesManager dataFilesManager) {
         try {
-            File file1 = new File(file1Path);
-            File file2 = new File(file2Path);
-            List<DataFile.Entry> entries1 = dataFile.readEntries(file1);
-            List<DataFile.Entry> entries2 = dataFile.readEntries(file2);
-            File fileToKeepName = file1Path.compareTo(file2Path) > 0 ? file1 : file2;
-            File fileToDeleteName = file1Path.compareTo(file2Path) > 0 ? file2 : file1;
+            List<DataFile.Entry> entries1 = dataFile1.readEntries();
+            List<DataFile.Entry> entries2 = dataFile2.readEntries();
+            DataFile fileToKeepName = dataFile1.getFileName().compareTo(dataFile2.getFileName()) > 0 ? dataFile1 : dataFile2;
+            DataFile fileToDeleteName = dataFile1.getFileName().compareTo(dataFile2.getFileName()) > 0 ? dataFile2 : dataFile1;
             // write to a temporary file first , which will be renamed afterward, to avoid data loss in case process crashes
             ConcurrentHashMap<String, IndexLocation> tempMemoryIndex = new ConcurrentHashMap<String, IndexLocation>();
-            File tempFile = new File(fileToKeepName.getAbsolutePath() + ".tmp");
+            File tempFile = new File("data/"+fileToKeepName.getFileName() + ".tmp");
             tempFile.createNewFile();
-            DataFile tempDataFile = new DataFile(tempFile.getName());
+            DataFile tempDataFile = new DataFile(tempFile);
             for(DataFile.Entry entry: entries1) {
-                if(memoryIndex.get(entry.key).getFileName().equals(file1.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
+                if(memoryIndex.get(entry.key).getFileName().equals(dataFile1.getFileName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
                     IndexLocation indexLocation = tempDataFile.appendEntryWhileMerging(entry.key, entry.value);
-                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getName(), indexLocation.getOffset()));
+                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getFileName(), indexLocation.getOffset()));
                 }
             }
             for(DataFile.Entry entry: entries2) {
-                if(memoryIndex.get(entry.key).getFileName().equals(file2.getName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
+                if(memoryIndex.get(entry.key).getFileName().equals(dataFile2.getFileName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
                     IndexLocation indexLocation = tempDataFile.appendEntryWhileMerging(entry.key, entry.value);
-                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getName(), indexLocation.getOffset()));
+                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getFileName(), indexLocation.getOffset()));
                 }
             }
 
-            // rename the temporary file to the file to keep
-            tempFile.renameTo(fileToKeepName);
-            // delete the file to delete
-            fileToDeleteName.delete();
             // update the main index
             for(Map.Entry<String,IndexLocation> entry: tempMemoryIndex.entrySet()) {
                 // timestamp check
@@ -69,8 +64,14 @@ public class CompactAndMerge {
                     memoryIndex.put(entry.getKey(), entry.getValue());
                 }
             }
+            // rename the temporary file to the file to keep
+//            tempDataFile.renameFile(fileToKeepName.getFileName());
+            tempFile.renameTo(new File("data/" + fileToKeepName.getFileName()));
 
-
+            // update the data file manager
+            fileToKeepName.refresh();
+            // delete the file to delete
+            fileToDeleteName.deleteFile();
         } catch (IOException e) {
             System.out.println("CompactAndMerge Exception: " + e.getMessage());
             throw new RuntimeException(e);

@@ -51,7 +51,7 @@ public class Main {
                         System.out.println("File: " + file);
                     }
                     System.out.println("Merging files: " + file1 + " and " + file2);
-                    keyValueStore.compactAndMerge("data/"+file1, "data/"+file2);
+                    keyValueStore.compactAndMerge(file1, file2);
                 }
             }
         } catch (Exception e) {
