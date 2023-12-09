@@ -2,6 +2,7 @@ package org.rnakra;
 
 import org.rnakra.core.KeyValueStoreImpl;
 import org.rnakra.merger.CompactAndMerge;
+import org.rnakra.scheduler.MasterTask;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -12,7 +13,7 @@ public class Main {
     public static void main(String[] args) {
         try {
             Scanner scanner = new Scanner(System.in);
-            KeyValueStoreImpl keyValueStore = new KeyValueStoreImpl();
+            MasterTask masterTask = new MasterTask();
             while(true) {
                 System.out.println("Enter command: " +
                         "put | get | exit | merge");
@@ -25,12 +26,14 @@ public class Main {
                     String key = scanner.nextLine();
                     System.out.println("Enter value: ");
                     String value = scanner.nextLine();
-                    keyValueStore.put(key, value);
+                    masterTask.submitWriteTask(key, value);
                 }
                 if(command.equals("get")) {
                     System.out.println("Enter key: ");
                     String key = scanner.nextLine();
-                    System.out.println("Value for key: " + key + " is: " + keyValueStore.get(key));
+                    masterTask.submitReadTask(key).thenAccept((value)-> {
+                        System.out.println("Value for key: " + key + " is: " + value);
+                    });
                 }
                 if(command.equals("merge")) {
                     System.out.println("Enter file name: ");
@@ -51,7 +54,7 @@ public class Main {
                         System.out.println("File: " + file);
                     }
                     System.out.println("Merging files: " + file1 + " and " + file2);
-                    keyValueStore.compactAndMerge(file1, file2);
+//                    keyValueStore.compactAndMerge(file1, file2);
                 }
             }
         } catch (Exception e) {

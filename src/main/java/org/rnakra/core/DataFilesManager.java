@@ -56,6 +56,7 @@ public class DataFilesManager implements DataFileSizeListener {
     @Override
     public void onFileSizeExceeded(DataFile dataFile) {
         try {
+            // Only for current file
             if(dataFile != this.currentDataFile) {
                 return;
             }
