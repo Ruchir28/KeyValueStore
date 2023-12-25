@@ -11,10 +11,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class DataFilesManager implements DataFileSizeListener {
 
+    ReadWriteLock readWriteLock;
     private final String defaultDirectory = "data"; // Default directory
     private List<DataFile> dataFiles;
 
@@ -44,6 +47,8 @@ public class DataFilesManager implements DataFileSizeListener {
             this.currentDataFile = this.dataFiles.get(this.dataFiles.size() - 1);
             // adding the listener
             this.currentDataFile.addDataFileSizeListener(this);
+
+            this.readWriteLock = new ReentrantReadWriteLock();
         } catch (Exception e) {
             System.out.println("DataFiles Manager Initilization Exception" + e.getMessage());
         }
@@ -62,7 +67,9 @@ public class DataFilesManager implements DataFileSizeListener {
             }
             File file = new File(defaultDirectory, Instant.now().toEpochMilli() + ".db");
             DataFile newDataFile = new DataFile(file);
+            this.readWriteLock.writeLock().lock();
             this.dataFiles.add(newDataFile);
+            this.readWriteLock.writeLock().unlock();
             this.currentDataFile = newDataFile;
             // adding the listener
             this.currentDataFile.addDataFileSizeListener(this);
@@ -75,21 +82,16 @@ public class DataFilesManager implements DataFileSizeListener {
         return dataFiles;
     }
 
-    public void updateDataFile(String oldDataFileName, String newDataFileName) throws IOException {
-        for(int i = 0; i < this.dataFiles.size(); i++) {
-            if(this.dataFiles.get(i).getFileName().equals(oldDataFileName)) {
-                this.dataFiles.get(i).updateFile(newDataFileName);
+    public DataFile getDataFile(String fileName) {
+        this.readWriteLock.readLock().lock();
+        DataFile file = null;
+        for(DataFile dataFile: this.dataFiles) {
+            if(dataFile.getFileName().equals(fileName)) {
+                file = dataFile;
                 break;
             }
         }
-    }
-
-    public DataFile getDataFile(String fileName) {
-        for(DataFile dataFile: this.dataFiles) {
-            if(dataFile.getFileName().equals(fileName)) {
-                return dataFile;
-            }
-        }
-        return null;
+        this.readWriteLock.readLock().unlock();
+        return file;
     }
 }

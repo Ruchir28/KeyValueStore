@@ -9,6 +9,7 @@ import java.util.List;
 
 // TODO: Maintain instances of ReadFile and WriteFile or some optimization around em
 public class DataFile {
+    public static final int MAX_FILE_SIZE = 1000000; // 1 MB
 
     public static class Pair {
         public String key;
@@ -91,7 +92,8 @@ public class DataFile {
         IndexLocation indexLocation = new IndexLocation(this.file.getName(), offset);
 
         // if file size exceeds the threshold fire the event
-        if(storeFile.length() > 100) {
+
+        if(storeFile.length() > MAX_FILE_SIZE) {
             notifyDataFileSizeListeners();
         }
 
