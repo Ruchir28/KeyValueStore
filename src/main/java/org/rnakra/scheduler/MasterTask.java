@@ -26,8 +26,8 @@ public class MasterTask {
 
     public CompletableFuture<String> submitReadTask(String key) {
         CompletableFuture<String> completableFuture = new CompletableFuture<>();
-        readQueue.add(new ReadTask(key,keyValueStore));
-        readExecutor.submit(() -> this.processReadTask(completableFuture));
+        readQueue.add(new ReadTask(key,keyValueStore,completableFuture));
+        readExecutor.submit(this::processReadTask);
         return completableFuture;
     }
 
@@ -45,16 +45,16 @@ public class MasterTask {
         }
     }
 
-    private void processReadTask(CompletableFuture<String> future)  {
+    private void processReadTask()  {
         ReadTask readTask = readQueue.poll();
         try {
             String value = null;
             if(readTask != null) {
                 value = readTask.call();
+                readTask.getCompletableFuture().complete(value);
             }
-            future.complete(value);
         } catch (Exception e) {
-            future.completeExceptionally(e);
+            readTask.getCompletableFuture().completeExceptionally(e);
         }
     }
 

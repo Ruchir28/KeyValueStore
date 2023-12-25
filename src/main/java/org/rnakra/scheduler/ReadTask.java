@@ -11,9 +11,16 @@ public class ReadTask implements Callable<String> {
     private String key;
     private final KeyValueStore keyValueStore;
 
-    public ReadTask(String key, KeyValueStore keyValueStore) {
+    private CompletableFuture<String> completableFuture;
+
+    public ReadTask(String key, KeyValueStore keyValueStore, CompletableFuture<String> completableFuture) {
         this.key = key;
         this.keyValueStore = keyValueStore;
+        this.completableFuture = completableFuture;
+    }
+
+    public CompletableFuture<String> getCompletableFuture() {
+        return completableFuture;
     }
 
     @Override
