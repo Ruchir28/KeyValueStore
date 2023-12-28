@@ -41,10 +41,15 @@ public class CompactAndMerge {
             // write to a temporary file first , which will be renamed afterward, to avoid data loss in case process crashes
             ConcurrentHashMap<String, IndexLocation> tempMemoryIndex = new ConcurrentHashMap<String, IndexLocation>();
 
-            String newfileName = "data/" + Long.toString(Long.parseLong(fileToKeepName.getFileName().split("\\.")[0])  + 1) + ".db";
+            String newfileName = Long.toString(Long.parseLong(fileToKeepName.getFileName().split("\\.")[0])  + 1) + ".db";
             System.out.println("Creating new file: " + newfileName);
-            File tempFile = new File(newfileName);
-            tempFile.createNewFile();
+            File tempFile = new File("data",newfileName);
+            if(!tempFile.createNewFile()) {
+                System.out.println("Failed to create File" + tempFile.getName());
+                return;
+            } else {
+                System.out.println("Created file" + tempFile.getName());
+            }
             DataFile tempDataFile = new DataFile(tempFile);
             for(DataFile.Entry entry: entries1) {
                 if(memoryIndex.get(entry.key).getFileName().equals(dataFile1.getFileName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {

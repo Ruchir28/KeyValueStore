@@ -116,6 +116,9 @@ public class DataFilesManager implements DataFileSizeListener {
                 break;
             }
         }
+        if(file == null) {
+            System.out.println("File not found: " + fileName);
+        }
         this.readWriteLock.readLock().unlock();
         return file;
     }
