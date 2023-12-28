@@ -40,37 +40,42 @@ public class CompactAndMerge {
             DataFile fileToDeleteName = dataFile1.getFileName().compareTo(dataFile2.getFileName()) > 0 ? dataFile2 : dataFile1;
             // write to a temporary file first , which will be renamed afterward, to avoid data loss in case process crashes
             ConcurrentHashMap<String, IndexLocation> tempMemoryIndex = new ConcurrentHashMap<String, IndexLocation>();
-            File tempFile = new File("data/"+fileToKeepName.getFileName() + ".tmp");
+
+            String newfileName = "data/" + Long.toString(Long.parseLong(fileToKeepName.getFileName().split("\\.")[0])  + 1) + ".db";
+            System.out.println("Creating new file: " + newfileName);
+            File tempFile = new File(newfileName);
             tempFile.createNewFile();
             DataFile tempDataFile = new DataFile(tempFile);
             for(DataFile.Entry entry: entries1) {
                 if(memoryIndex.get(entry.key).getFileName().equals(dataFile1.getFileName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
                     IndexLocation indexLocation = tempDataFile.appendEntryWhileMerging(entry.key, entry.value);
-                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getFileName(), indexLocation.getOffset()));
+                    tempMemoryIndex.put(entry.key, new IndexLocation(tempDataFile.getFileName(), indexLocation.getOffset()));
                 }
             }
             for(DataFile.Entry entry: entries2) {
                 if(memoryIndex.get(entry.key).getFileName().equals(dataFile2.getFileName()) && memoryIndex.get(entry.key).getOffset() == entry.offset) {
                     IndexLocation indexLocation = tempDataFile.appendEntryWhileMerging(entry.key, entry.value);
-                    tempMemoryIndex.put(entry.key, new IndexLocation(fileToKeepName.getFileName(), indexLocation.getOffset()));
+                    tempMemoryIndex.put(entry.key, new IndexLocation(tempDataFile.getFileName(), indexLocation.getOffset()));
                 }
             }
-
             // update the main index
             for(Map.Entry<String,IndexLocation> entry: tempMemoryIndex.entrySet()) {
                 // timestamp check
+
                 if(memoryIndex.get(entry.getKey()).getFileName().compareTo(entry.getValue().getFileName()) <= 0) {
-                    System.out.println("Updating index for key: " + entry.getKey() + " to file: " + entry.getValue().getFileName());
+//                    System.out.println("Updating index for key: " + entry.getKey() + " to file: " + entry.getValue().getFileName());
                     memoryIndex.put(entry.getKey(), entry.getValue());
                 }
             }
             // rename the temporary file to the file to keep
-//            tempDataFile.renameFile(fileToKeepName.getFileName());
-            tempFile.renameTo(new File("data/" + fileToKeepName.getFileName()));
-
-            // update the data file manager
-            fileToKeepName.refresh();
+            // tempDataFile.renameFile(fileToKeepName.getFileName());
             // delete the file to delete
+//            tempFile.renameTo(new File("data/" + fileToKeepName.getFileName()));
+            dataFilesManager.addDataFile(tempDataFile);
+            dataFilesManager.removeDataFile(fileToDeleteName);
+            dataFilesManager.removeDataFile(fileToKeepName);
+            // update the data file manager
+            fileToKeepName.deleteFile();
             fileToDeleteName.deleteFile();
         } catch (IOException e) {
             System.out.println("CompactAndMerge Exception: " + e.getMessage());

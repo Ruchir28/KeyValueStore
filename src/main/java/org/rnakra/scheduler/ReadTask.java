@@ -11,6 +11,8 @@ public class ReadTask implements Callable<String> {
     private String key;
     private final KeyValueStore keyValueStore;
 
+    private int retryCount = 0;
+
     private CompletableFuture<String> completableFuture;
 
     public ReadTask(String key, KeyValueStore keyValueStore, CompletableFuture<String> completableFuture) {
@@ -28,6 +30,11 @@ public class ReadTask implements Callable<String> {
         try {
             return keyValueStore.get(key);
         } catch (IOException e) {
+            if(retryCount < 3) {
+                System.out.println("Retrying read for key:" + key);
+                retryCount++;
+                return call();
+            }
             System.err.println("Exception in reading key:" + key+" "+e.getMessage());
             throw new RuntimeException(e);
         }

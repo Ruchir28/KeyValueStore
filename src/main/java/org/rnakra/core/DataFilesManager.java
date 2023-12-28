@@ -7,12 +7,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class DataFilesManager implements DataFileSizeListener {
@@ -26,6 +24,7 @@ public class DataFilesManager implements DataFileSizeListener {
     public DataFilesManager() throws FileNotFoundException {
         try {
             File directory = new File(defaultDirectory);
+
             if(directory.exists() && directory.isDirectory() && directory.listFiles().length > 0) {
                 List<File> files = Arrays.stream(directory.listFiles()).filter(File::isFile).filter(file -> file.getName().endsWith(".db")).collect(Collectors.toList());
                 this.dataFiles = files.stream().map(file -> {
@@ -80,6 +79,32 @@ public class DataFilesManager implements DataFileSizeListener {
 
     public List<DataFile> getDataFiles() {
         return dataFiles;
+    }
+
+    public void addDataFile(DataFile dataFile) {
+        this.readWriteLock.writeLock().lock();
+        this.dataFiles.add(dataFile);
+        // sorted is ascending order by name
+        this.dataFiles.sort(Comparator.comparing(DataFile::getFileName));
+        this.readWriteLock.writeLock().unlock();
+    }
+
+    public void removeDataFile(DataFile dataFile) {
+        this.readWriteLock.writeLock().lock();
+        this.dataFiles.removeIf(file -> file.getFileName().equals(dataFile.getFileName()));
+        // sorted is ascending order by name
+        this.readWriteLock.writeLock().unlock();
+    }
+
+    public List<DataFile> getFilesForMerging() {
+       readWriteLock.readLock().lock();
+       List<DataFile> files = new ArrayList<>();
+       if(this.dataFiles.size() > 1) {
+           files.add(this.dataFiles.get(0));
+           files.add(this.dataFiles.get(1));
+       }
+       readWriteLock.readLock().unlock();
+       return files;
     }
 
     public DataFile getDataFile(String fileName) {

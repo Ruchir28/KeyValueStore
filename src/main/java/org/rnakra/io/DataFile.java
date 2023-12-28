@@ -9,7 +9,9 @@ import java.util.List;
 
 // TODO: Maintain instances of ReadFile and WriteFile or some optimization around em
 public class DataFile {
-    public static final int MAX_FILE_SIZE = 1000000; // 1 MB
+//    public static final int MAX_FILE_SIZE = 1000000; // 1 MB
+
+    public static final int MAX_FILE_SIZE = 1000; // 1 MB
 
     public static class Pair {
         public String key;
@@ -49,6 +51,11 @@ public class DataFile {
     }
 
     public void refresh() throws FileNotFoundException {
+        try {
+            this.storeFile.close();
+        } catch (IOException e) {
+            System.err.println("Error in closing file: " + this.file.getName());
+        }
         this.storeFile = new RandomAccessFile(this.file,"rw");
     }
 

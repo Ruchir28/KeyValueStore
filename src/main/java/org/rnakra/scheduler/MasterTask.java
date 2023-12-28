@@ -1,7 +1,9 @@
 package org.rnakra.scheduler;
 
+import org.rnakra.core.DataFilesManager;
 import org.rnakra.core.KeyValueStore;
 import org.rnakra.core.KeyValueStoreImpl;
+import org.rnakra.merger.CompactAndMerge;
 
 import java.io.FileNotFoundException;
 import java.util.LinkedList;
@@ -34,6 +36,12 @@ public class MasterTask {
     public void submitWriteTask(String key, String value) {
         writeQueue.add(new WriteTask(key,value,keyValueStore));
         writeExecutor.submit(this::processWriteTask);
+        int random_choice = (int)(Math.random() * 1000.0);
+//        System.out.println("Random choice: " + random_choice);
+        if(random_choice < 10) {
+            submitMergeTask();
+        }
+//        submitMergeTask();
     }
 
     private void processWriteTask() {
@@ -56,6 +64,10 @@ public class MasterTask {
         } catch (Exception e) {
             readTask.getCompletableFuture().completeExceptionally(e);
         }
+    }
+
+    public void submitMergeTask() {
+        keyValueStore.compactAndMerge();
     }
 
 
