@@ -13,7 +13,7 @@ import java.util.List;
 public class DataFile extends DataFileHeader {
 //    public static final int MAX_FILE_SIZE = 1000000; // 1 MB
 
-    public static final int MAX_FILE_SIZE = 3056; // 1 MB
+    public static final int MAX_FILE_SIZE = 5238; // 1 MB
 
     public static class Pair {
         public String key;

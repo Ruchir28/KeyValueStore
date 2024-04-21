@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -21,6 +23,9 @@ public class DataFilesManager implements DataFileSizeListener {
     private List<DataFile> dataFiles;
 
     private DataFile currentDataFile;
+
+    private ScheduledExecutorService scheduler;
+
 
     public DataFilesManager() throws FileNotFoundException {
         try {
@@ -50,6 +55,16 @@ public class DataFilesManager implements DataFileSizeListener {
             this.currentDataFile.addDataFileSizeListener(this);
 
             this.readWriteLock = new ReentrantReadWriteLock();
+
+            this.scheduler = Executors.newScheduledThreadPool(1);
+
+            scheduler.scheduleAtFixedRate(
+                    this::cleanupSoftDeletedFiles,
+                    5000, // 5s for now
+                    5000, // 5s for now
+                    java.util.concurrent.TimeUnit.MILLISECONDS
+            );
+
         } catch (Exception e) {
             System.out.println("DataFiles Manager Initilization Exception" + e.getMessage());
         }
@@ -124,4 +139,21 @@ public class DataFilesManager implements DataFileSizeListener {
         this.readWriteLock.readLock().unlock();
         return file;
     }
+
+    public void cleanupSoftDeletedFiles() {
+        this.readWriteLock.readLock().lock();
+        long currentTime = System.currentTimeMillis();
+
+        for (DataFile file : dataFiles) {
+            // If file is safe to delete and beyond the grace period
+            if (file.getFile().exists() && (file.getFileState() == 1) && System.currentTimeMillis() - file.getFile().lastModified() > 2000) {
+                file.getFile().delete();
+                System.out.println("Deleted file: " + file.getFile().getName());
+            }
+
+        }
+
+        this.readWriteLock.readLock().unlock();
+    }
+
 }
