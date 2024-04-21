@@ -1,17 +1,19 @@
 package org.rnakra.io;
+import org.rnakra.core.DataFileHeader;
 import org.rnakra.core.IndexLocation;
 import org.rnakra.listener.DataFileSizeListener;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
 // TODO: Maintain instances of ReadFile and WriteFile or some optimization around em
-public class DataFile {
+public class DataFile extends DataFileHeader {
 //    public static final int MAX_FILE_SIZE = 1000000; // 1 MB
 
-    public static final int MAX_FILE_SIZE = 1000; // 1 MB
+    public static final int MAX_FILE_SIZE = 3056; // 1 MB
 
     public static class Pair {
         public String key;
@@ -38,16 +40,21 @@ public class DataFile {
 
     private List<DataFileSizeListener> dataFileSizeListeners;
 
-    public DataFile(String fileName) throws FileNotFoundException {
+    DataFileHeader dataFileHeader;
+
+    public DataFile(String fileName) throws IOException, NoSuchAlgorithmException {
         this.file = new File(fileName); // Default file path
         this.storeFile = new RandomAccessFile(this.file, "rw");
         this.dataFileSizeListeners = new ArrayList<>();
+        this.writeHeader(this.storeFile);
+
     }
 
-    public DataFile(File file) throws FileNotFoundException {
+    public DataFile(File file) throws IOException, NoSuchAlgorithmException {
         this.file = file;
         this.storeFile = new RandomAccessFile(this.file,"rw");
         this.dataFileSizeListeners = new ArrayList<>();
+        this.writeHeader(this.storeFile);
     }
 
     public void refresh() throws FileNotFoundException {
@@ -76,7 +83,7 @@ public class DataFile {
     public String getFileName() {
         return this.file.getName();
     }
-    public synchronized IndexLocation appendEntry(String key, String value) throws IOException {
+    public synchronized IndexLocation appendEntry(String key, String value) throws IOException, NoSuchAlgorithmException {
         storeFile.seek(storeFile.length()); // Move to the end of the file
 
         byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
@@ -104,23 +111,27 @@ public class DataFile {
             notifyDataFileSizeListeners();
         }
 
+        this.writeHeader(this.storeFile);
+
         return indexLocation;
     }
 
 
-    public synchronized boolean deleteFile() throws IOException {
-        return this.file.delete();
-    }
-
-    public synchronized boolean renameFile(String newName) throws IOException {
-        return this.file.renameTo(new File(newName));
+    public synchronized boolean softdeleteFile() throws IOException, NoSuchAlgorithmException {
+        try {
+            this.updateFileState(this.storeFile, (byte)1);
+            //TODO: add the file to the list of files to be deleted
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public File getFile() {
         return this.file;
     }
 
-    public synchronized IndexLocation appendEntryWhileMerging(String key, String value) throws IOException {
+    public synchronized IndexLocation appendEntryWhileMerging(String key, String value) throws IOException, NoSuchAlgorithmException {
         storeFile.seek(storeFile.length()); // Move to the end of the file
 
         byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
@@ -138,12 +149,8 @@ public class DataFile {
         storeFile.write(entryBytes); // Write the whole entry
 
         long offset =  storeFile.length() - entryBytes.length; // Return the start offset of this entry
+        this.writeHeader(this.storeFile);
         return new IndexLocation(this.file.getName(), offset);
-    }
-
-    public synchronized void updateFile(String newFileName) throws IOException {
-        this.file = new File(newFileName);
-        this.storeFile = new RandomAccessFile(this.file,"rw");
     }
 
     public synchronized String readEntry(IndexLocation indexLocation) throws IOException {
@@ -165,14 +172,14 @@ public class DataFile {
 
 
     public synchronized List<Entry> readEntries() throws IOException {
-        storeFile.seek(0); // Move to the start of the entry
+        storeFile.seek(HEADER_SIZE); // Move to the start of the entry
         DataInputStream dataInputStream = new DataInputStream(new FileInputStream(storeFile.getFD()));
         List<Entry> entries = new ArrayList<>();
         if(file.length() == 0) {
             return entries;
         }
-        long offset = 0;
-        while(true) {
+        long offset = HEADER_SIZE;
+        while(offset < storeFile.length()) {
             int keySize = dataInputStream.readInt();
             int valueSize = dataInputStream.readInt();
 

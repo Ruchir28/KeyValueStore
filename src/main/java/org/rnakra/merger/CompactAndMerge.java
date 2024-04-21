@@ -6,6 +6,7 @@ import org.rnakra.io.DataFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,11 +42,22 @@ public class CompactAndMerge {
             // write to a temporary file first , which will be renamed afterward, to avoid data loss in case process crashes
             ConcurrentHashMap<String, IndexLocation> tempMemoryIndex = new ConcurrentHashMap<String, IndexLocation>();
 
-            String newfileName = Long.toString(Long.parseLong(fileToKeepName.getFileName().split("\\.")[0])  + 1) + ".db";
+            // extract version number from the file to keep, if file does not have a integer version number, set it to 0
+
+            int version_number = 0;
+            try {
+                version_number = Integer.parseInt(fileToKeepName.getFileName().split("\\.")[1]);
+            } catch (NumberFormatException e) {
+                // If the version number is not an integer, set it to 0
+            }
+
+            String newfileName = Long.toString(Long.parseLong(fileToKeepName.getFileName().split("\\.")[0])) + "."+ ((version_number + 1)) +".db";
+
             System.out.println("Creating new file: " + newfileName);
             File tempFile = new File("data",newfileName);
+
             if(!tempFile.createNewFile()) {
-                System.out.println("Failed to create File" + tempFile.getName());
+                System.out.println("Failed to create File " + tempFile.getName());
                 return;
             } else {
                 System.out.println("Created file" + tempFile.getName());
@@ -63,6 +75,14 @@ public class CompactAndMerge {
                     tempMemoryIndex.put(entry.key, new IndexLocation(tempDataFile.getFileName(), indexLocation.getOffset()));
                 }
             }
+
+            // add the merged file to the data file manager, so that it is ready to be used
+            // and then only update the index, we have both the merged files and the unmerged file available
+            // tile the index update is done, in case we get read request in b/w and index is not updated yet it can be
+            // read from the old files too
+            dataFilesManager.addDataFile(tempDataFile);
+
+
             // update the main index
             for(Map.Entry<String,IndexLocation> entry: tempMemoryIndex.entrySet()) {
                 // timestamp check
@@ -72,17 +92,20 @@ public class CompactAndMerge {
                     memoryIndex.put(entry.getKey(), entry.getValue());
                 }
             }
-            // rename the temporary file to the file to keep
-            // tempDataFile.renameFile(fileToKeepName.getFileName());
-            // delete the file to delete
-//            tempFile.renameTo(new File("data/" + fileToKeepName.getFileName()));
-            dataFilesManager.addDataFile(tempDataFile);
-            dataFilesManager.removeDataFile(fileToDeleteName);
-            dataFilesManager.removeDataFile(fileToKeepName);
-            // update the data file manager
-            fileToKeepName.deleteFile();
-            fileToDeleteName.deleteFile();
-        } catch (IOException e) {
+
+
+            // Remove the files from DataFileManager
+//            dataFilesManager.removeDataFile(fileToDeleteName);
+//            dataFilesManager.removeDataFile(fileToKeepName);
+            // Finally deleting the files from disk
+
+
+             // Can't immediately delete the files because there might be read requests in between
+
+            fileToKeepName.softdeleteFile(); // Mark the file as deleted
+            fileToDeleteName.softdeleteFile(); // Mark the file as deleted
+            System.out.println("MERGE AND COMPACT SUCCESSFUL");
+        } catch (IOException | NoSuchAlgorithmException e) {
             System.out.println("CompactAndMerge Exception: " + e.getMessage());
             throw new RuntimeException(e);
         }

@@ -6,6 +6,7 @@ import org.rnakra.listener.DataFileSizeListener;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -30,7 +31,8 @@ public class DataFilesManager implements DataFileSizeListener {
                 this.dataFiles = files.stream().map(file -> {
                     try {
                         return new DataFile(file);
-                    } catch (FileNotFoundException e) {
+                    } catch (Exception e) {
+                        System.err.println("Error occurred in Creating File");
                         e.printStackTrace();
                     }
                     return null;
@@ -74,6 +76,10 @@ public class DataFilesManager implements DataFileSizeListener {
             this.currentDataFile.addDataFileSizeListener(this);
         } catch (FileNotFoundException e) {
             System.out.println("Exception: " + e.getMessage());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -98,11 +104,7 @@ public class DataFilesManager implements DataFileSizeListener {
 
     public List<DataFile> getFilesForMerging() {
        readWriteLock.readLock().lock();
-       List<DataFile> files = new ArrayList<>();
-       if(this.dataFiles.size() > 1) {
-           files.add(this.dataFiles.get(0));
-           files.add(this.dataFiles.get(1));
-       }
+       List<DataFile> files = this.dataFiles.stream().filter(dataFile -> dataFile.getFileState() == 0).collect(Collectors.toList());
        readWriteLock.readLock().unlock();
        return files;
     }

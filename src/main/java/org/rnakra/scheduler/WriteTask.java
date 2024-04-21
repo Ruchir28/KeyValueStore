@@ -3,6 +3,7 @@ package org.rnakra.scheduler;
 import org.rnakra.core.KeyValueStore;
 
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 
 public class WriteTask implements Runnable {
 
@@ -21,7 +22,7 @@ public class WriteTask implements Runnable {
     public void run() {
         try {
             keyValueStore.put(key,value);
-        } catch (IOException e) {
+        } catch (IOException | NoSuchAlgorithmException e) {
             System.err.println("Error in writing Key: " + key+" "+ e.getMessage());
             throw new RuntimeException(e);
         }

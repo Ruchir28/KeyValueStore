@@ -7,6 +7,7 @@ import org.rnakra.merger.CompactAndMerge;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,7 +19,7 @@ public class KeyValueStoreImpl implements KeyValueStore {
         IN_PROGRESS
     }
 
-    private COMPACT_AND_MERGE_STATE compactAndMergeState = COMPACT_AND_MERGE_STATE.IDLE;
+    COMPACT_AND_MERGE_STATE compactAndMergeState = COMPACT_AND_MERGE_STATE.IDLE;
     // In memory index to keep track of the location of the key in the data file.
     private final ConcurrentHashMap<String, IndexLocation> memoryIndex;
 
@@ -28,11 +29,10 @@ public class KeyValueStoreImpl implements KeyValueStore {
         loadIndexes();
     }
 
-    public void put(String key, String value) throws IOException {
+    public void put(String key, String value) throws IOException, NoSuchAlgorithmException {
 //        System.out.println("Putting key: " + key + " value: " + value);
         IndexLocation location = dataFileManager.getCurrentDataFile().appendEntry(key, value);
         memoryIndex.put(key, location);
-
     }
 
     private void loadIndexes() {
@@ -68,14 +68,13 @@ public class KeyValueStoreImpl implements KeyValueStore {
             }
             compactAndMergeState = COMPACT_AND_MERGE_STATE.IN_PROGRESS;
         }
-//        System.out.println("Compacting and merging data files");
         List<DataFile> files = dataFileManager.getFilesForMerging();
         if(files.size() > 1) {
             System.out.println("Merging files " + files.get(0).getFileName() + " and "
                     + files.get(1).getFileName() + " into " + files.get(1).getFileName() + " and deleting "
-                    + files.get(0).getFileName() + " and " + files.get(0).getFileName() + " from disk");
-            DataFile file1 = dataFileManager.getDataFiles().get(0);
-            DataFile file2 = dataFileManager.getDataFiles().get(1);
+                    + " and " + files.get(0).getFileName() + " from disk");
+            DataFile file1 = files.get(0);
+            DataFile file2 = files.get(1);
             CompactAndMerge.merge(memoryIndex, file1, file2, dataFileManager);
         } else {
 //            System.out.println("No files to merge");
@@ -83,7 +82,6 @@ public class KeyValueStoreImpl implements KeyValueStore {
         synchronized (this) {
             compactAndMergeState = COMPACT_AND_MERGE_STATE.IDLE;
         }
-
     }
 }
 //saalsmlasmalsmdlasmdlasmdlkasmdlkasmlkdmaldmalskmdlasmlaksmlkasmlkamclkmsclkamlckamlcmalkmlkasmclkamcladmclasllaksmalcmlamclamclakmclksamclkmalsklasnlcnalcnaknsclaskncalsncalkscnalcnalsnc
