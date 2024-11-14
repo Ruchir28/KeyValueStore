@@ -13,7 +13,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class DataFilesManager implements DataFileSizeListener {
@@ -148,7 +147,7 @@ public class DataFilesManager implements DataFileSizeListener {
             // If file is safe to delete and beyond the grace period
             if (file.getFile().exists() && (file.getFileState() == 1) && System.currentTimeMillis() - file.getFile().lastModified() > 2000) {
                 file.getFile().delete();
-                System.out.println("Deleted file: " + file.getFile().getName());
+                // System.out.println("Deleted file: " + file.getFile().getName());
             }
 
         }

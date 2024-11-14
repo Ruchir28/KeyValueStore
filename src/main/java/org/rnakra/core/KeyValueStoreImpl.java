@@ -70,9 +70,9 @@ public class KeyValueStoreImpl implements KeyValueStore {
         }
         List<DataFile> files = dataFileManager.getFilesForMerging();
         if(files.size() > 1) {
-            System.out.println("Merging files " + files.get(0).getFileName() + " and "
-                    + files.get(1).getFileName() + " into " + files.get(1).getFileName() + " and deleting "
-                    + " and " + files.get(0).getFileName() + " from disk");
+            // System.out.println("Merging files " + files.get(0).getFileName() + " and "
+            //         + files.get(1).getFileName() + " into " + files.get(1).getFileName() + " and deleting "
+            //         + " and " + files.get(0).getFileName() + " from disk");
             DataFile file1 = files.get(0);
             DataFile file2 = files.get(1);
             CompactAndMerge.merge(memoryIndex, file1, file2, dataFileManager);

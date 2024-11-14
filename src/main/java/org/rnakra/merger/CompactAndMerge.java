@@ -13,26 +13,50 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Summary: Race Condition Handling in Key-Value Store Merge Process
+ * 
  * Context:
  * Implementing a merge process for a key-value store with data files capped at 10 MB each.
  * Files are named with timestamps to indicate their creation time.
  * Concerned about race conditions where new writes could occur during the merging process.
+ * 
  * Solution Approach:
- *
- * Timestamp-Based File Naming:
- *
- * Data files are named with timestamps, providing a chronological record of their creation.
- * Merge Process:
- *
- * Merge involves consolidating data from two files into one, choosing the file with the latest data based on the timestamp, and then deleting the other file.
- * Index Update Strategy:
- *
- * When updating the main index after merging, the process checks the timestamp in the current index entry against the timestamp of the file from which the data is being merged.
- * The index is updated only if it points to a file with a timestamp equal to or older than the merged file's timestamp.
- * If the index points to a newer file (indicating a write occurred after the merge started), the index is not updated for that key, preserving the latest data..
+ * 1. Timestamp-Based File Naming:
+ *    - Data files are named with format: timestamp.version.db
+ *    - Timestamp provides chronological record of creation
+ *    - Version numbers ensure safe concurrent access during merges
+ * 
+ * 2. Merge Process:
+ *    - Consolidates data from two files into a new versioned file
+ *    - Chooses latest data based on timestamp
+ *    - Maintains both old and new files until index updates complete
+ *    - Soft deletes old files only after safe transition
+ * 
+ * 3. Index Update Strategy:
+ *    - New merged file is made available before index updates begin
+ *    - Updates index only if it points to same or older file (timestamp comparison)
+ *    - If index points to newer file (indicating concurrent write), preserves that entry
+ *    - Ensures no data loss during concurrent operations
+ * 
+ * File Naming Example:
+ * Original files: 1234567890.1.db, 1234567890.2.db
+ * Merged file:    1234567890.3.db
+ * 
+ * Safety Mechanisms:
+ * 1. Version numbers prevent file content corruption during merges
+ * 2. Soft deletion ensures ongoing reads complete successfully
+ * 3. Atomic index updates preserve consistency
+ * 4. Timestamp comparisons prevent data loss from concurrent writes
  */
 
 public class CompactAndMerge {
+    /**
+     * Performs thread-safe merge of two data files while handling concurrent reads and writes.
+     * 
+     * @param memoryIndex The concurrent hash map storing key to file location mappings
+     * @param dataFile1 First file to merge
+     * @param dataFile2 Second file to merge
+     * @param dataFilesManager Manager handling active data files for reads/writes
+     */
     public static synchronized void merge(ConcurrentHashMap<String, IndexLocation> memoryIndex, DataFile dataFile1, DataFile dataFile2, DataFilesManager dataFilesManager) {
         try {
             List<DataFile.Entry> entries1 = dataFile1.readEntries();
@@ -53,14 +77,14 @@ public class CompactAndMerge {
 
             String newfileName = Long.toString(Long.parseLong(fileToKeepName.getFileName().split("\\.")[0])) + "."+ ((version_number + 1)) +".db";
 
-            System.out.println("Creating new file: " + newfileName);
+            // System.out.println("Creating new file: " + newfileName);
             File tempFile = new File("data",newfileName);
 
             if(!tempFile.createNewFile()) {
                 System.out.println("Failed to create File " + tempFile.getName());
                 return;
             } else {
-                System.out.println("Created file" + tempFile.getName());
+                // System.out.println("Created file" + tempFile.getName());
             }
             DataFile tempDataFile = new DataFile(tempFile);
             for(DataFile.Entry entry: entries1) {
@@ -85,26 +109,18 @@ public class CompactAndMerge {
 
             // update the main index
             for(Map.Entry<String,IndexLocation> entry: tempMemoryIndex.entrySet()) {
-                // timestamp check
 
                 if(memoryIndex.get(entry.getKey()).getFileName().compareTo(entry.getValue().getFileName()) <= 0) {
-//                    System.out.println("Updating index for key: " + entry.getKey() + " to file: " + entry.getValue().getFileName());
                     memoryIndex.put(entry.getKey(), entry.getValue());
                 }
             }
 
-
-            // Remove the files from DataFileManager
-//            dataFilesManager.removeDataFile(fileToDeleteName);
-//            dataFilesManager.removeDataFile(fileToKeepName);
-            // Finally deleting the files from disk
-
-
-             // Can't immediately delete the files because there might be read requests in between
+            // Can't immediately delete the files because there might be read requests in between
 
             fileToKeepName.softdeleteFile(); // Mark the file as deleted
             fileToDeleteName.softdeleteFile(); // Mark the file as deleted
-            System.out.println("MERGE AND COMPACT SUCCESSFUL");
+
+            // System.out.println("MERGE AND COMPACT SUCCESSFUL");
         } catch (IOException | NoSuchAlgorithmException e) {
             System.out.println("CompactAndMerge Exception: " + e.getMessage());
             throw new RuntimeException(e);
