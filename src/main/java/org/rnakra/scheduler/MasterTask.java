@@ -1,7 +1,9 @@
 package org.rnakra.scheduler;
 
+import org.rnakra.core.DataFilesManager;
 import org.rnakra.core.KeyValueStore;
 import org.rnakra.core.KeyValueStoreImpl;
+import org.rnakra.merger.CompactAndMerge;
 
 import java.io.FileNotFoundException;
 import java.util.LinkedList;
@@ -12,7 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MasterTask {
-    private final int NUM_READ_THREADS = 10;
+    private final int NUM_READ_THREADS = 5;
     private Queue<ReadTask> readQueue = new ConcurrentLinkedQueue<>();
     private final Queue<WriteTask> writeQueue = new LinkedList<>(); // Guarded by a lock
     private ExecutorService readExecutor = Executors.newFixedThreadPool(NUM_READ_THREADS);
@@ -31,9 +33,15 @@ public class MasterTask {
         return completableFuture;
     }
 
-    public void submitWriteTask(String key, String value) {
-        writeQueue.add(new WriteTask(key,value,keyValueStore));
+    public CompletableFuture<Void> submitWriteTask(String key, String value) {
+        CompletableFuture<Void> completableFuture = new CompletableFuture<>();
+        writeQueue.add(new WriteTask(key, value, keyValueStore, completableFuture));
         writeExecutor.submit(this::processWriteTask);
+        int random_choice = (int)(Math.random() * 1000.0);
+        if(random_choice < 10) {
+            submitMergeTask();
+        }
+        return completableFuture;
     }
 
     private void processWriteTask() {
@@ -41,6 +49,7 @@ public class MasterTask {
             WriteTask writeTask = writeQueue.poll();
             if(writeTask != null) {
                 writeTask.run();
+                writeTask.getCompletableFuture().complete(null);
             }
         }
     }
@@ -56,6 +65,10 @@ public class MasterTask {
         } catch (Exception e) {
             readTask.getCompletableFuture().completeExceptionally(e);
         }
+    }
+
+    public void submitMergeTask() {
+        keyValueStore.compactAndMerge();
     }
 
 
